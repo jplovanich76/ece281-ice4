@@ -1,95 +1,74 @@
---+----------------------------------------------------------------------------
---| 
---| COPYRIGHT 2018 United States Air Force Academy All rights reserved.
---| 
---| United States Air Force Academy     __  _______ ___    _________ 
---| Dept of Electrical &               / / / / ___//   |  / ____/   |
---| Computer Engineering              / / / /\__ \/ /| | / /_  / /| |
---| 2354 Fairchild Drive Ste 2F6     / /_/ /___/ / ___ |/ __/ / ___ |
---| USAF Academy, CO 80840           \____//____/_/  |_/_/   /_/  |_|
---| 
---| ---------------------------------------------------------------------------
---|
---| FILENAME      : stoplight_fsm.vhd
---| AUTHOR(S)     : Capt Phillip Warner, Capt Dan Johnson
---| CREATED       : 02/22/2018, Last Modified 06/24/2020 by Capt Dan Johnson
---| DESCRIPTION   : This module file implements solution for the HW stoplight example using 
---|				  : direct hardware mapping (registers and CL) for BINARY encoding.
---|               : Reset is asynchronous with a default state of yellow.
---|
---|					Inputs:  i_C 	 --> input to indicate a car is present
---|                          i_reset --> fsm reset
---|                          i_clk   --> slowed down clk
---|							 
---|					Outputs: o_R     --> red light output
---|							 o_Y	 --> yellow light output
---|							 o_G	 --> green light output
---|
---+----------------------------------------------------------------------------
---|
---| REQUIRED FILES :
---|
---|    Libraries : ieee
---|    Packages  : std_logic_1164, numeric_std
---|    Files     : None
---|
---+----------------------------------------------------------------------------
---|
---| NAMING CONVENSIONS :
---|
---|    xb_<port name>           = off-chip bidirectional port ( _pads file )
---|    xi_<port name>           = off-chip input port         ( _pads file )
---|    xo_<port name>           = off-chip output port        ( _pads file )
---|    b_<port name>            = on-chip bidirectional port
---|    i_<port name>            = on-chip input port
---|    o_<port name>            = on-chip output port
---|    c_<signal name>          = combinatorial signal
---|    f_<signal name>          = synchronous signal
---|    ff_<signal name>         = pipeline stage (ff_, fff_, etc.)
---|    <signal name>_n          = active low signal
---|    w_<signal name>          = top level wiring signal
---|    g_<generic name>         = generic
---|    k_<constant name>        = constant
---|    v_<variable name>        = variable
---|    sm_<state machine type>  = state machine type definition
---|    s_<signal name>          = state name
---|
---+----------------------------------------------------------------------------
-library ieee;
-  use ieee.std_logic_1164.all;
-  use ieee.numeric_std.all;
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.NUMERIC_STD.ALL;
 
-  
 entity stoplight_fsm is
-    Port ( i_C     : in  STD_LOGIC;
-           i_reset : in  STD_LOGIC;
-           i_clk   : in  STD_LOGIC;
-           o_R     : out  STD_LOGIC;
-           o_Y     : out  STD_LOGIC;
-           o_G     : out  STD_LOGIC);
+    Port (
+        clk       : in  STD_LOGIC;
+        reset     : in  STD_LOGIC;
+        car       : in  STD_LOGIC;
+        pedestrian: in  STD_LOGIC;
+        red       : out STD_LOGIC;
+        yellow    : out STD_LOGIC;
+        green     : out STD_LOGIC
+    );
 end stoplight_fsm;
 
-architecture stoplight_fsm_arch of stoplight_fsm is 
-	
-	-- create register signals with default state yellow (10)
-  
+architecture Behavioral of stoplight_fsm is
+    type state_type is (S_RED, S_GREEN, S_YELLOW);
+    signal current_state, next_state : state_type;
+
+    signal count : INTEGER range 0 to 15 := 0;  -- Count directly in seconds (1Hz clock)
+
+    constant RED_TIME    : INTEGER := 10;  -- 10 seconds
+    constant GREEN_TIME  : INTEGER := 7;   -- 7 seconds
+    constant YELLOW_TIME : INTEGER := 3;   -- 3 seconds
+
 begin
-	-- CONCURRENT STATEMENTS ----------------------------
-	-- Next state logic
-	
-	
-	-- Output logic
-	
-	-------------------------------------------------------	
-	
-	-- PROCESSES ----------------------------------------	
-	-- state memory w/ asynchronous reset ---------------
-	register_proc : process (  )
-	begin
-			--Reset state is yellow
+    process (clk, reset)
+    begin
+        if reset = '1' then
+            current_state <= S_RED;
+            count <= 0;
+        elsif rising_edge(clk) then
+            if count >= RED_TIME and current_state = S_RED then
+                current_state <= S_GREEN;
+                count <= 0;
+            elsif count >= GREEN_TIME and current_state = S_GREEN then
+                current_state <= S_YELLOW;
+                count <= 0;
+            elsif count >= YELLOW_TIME and current_state = S_YELLOW then
+                current_state <= S_RED;
+                count <= 0;
+            else
+                count <= count + 1;
+            end if;
+        end if;
+    end process;
 
+    -- Output Logic
+    process (current_state)
+    begin
+        case current_state is
+            when S_RED =>
+                red    <= '1';
+                yellow <= '0';
+                green  <= '0';
 
-	end process register_proc;
-	-------------------------------------------------------
-	
-end stoplight_fsm_arch;
+            when S_GREEN =>
+                red    <= '0';
+                yellow <= '0';
+                green  <= '1';
+
+            when S_YELLOW =>
+                red    <= '0';
+                yellow <= '1';
+                green  <= '0';
+
+            when others =>
+                red    <= '1';
+                yellow <= '0';
+                green  <= '0';
+        end case;
+    end process;
+end Behavioral;
